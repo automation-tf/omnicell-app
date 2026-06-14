@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omnicell XT — ADC Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --steel-1:#e9ecef; --steel-2:#d4d9de; --steel-3:#bcc3ca; --edge:#9aa1a9;
+    --green:#16a34a; --green-d:#15803d; --omni:#558b2f; --omni-l:#dcedc8;
+    --yellow:#eab308; --yellow-d:#a16207; --grey:#cbd5e1;
+    --red:#dc2626; --red-d:#b91c1c; --amber:#d97706; --orange:#ea580c;
+    --ink:#1f2937; --muted:#6b7280;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eceef0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:var(--ink)}
+  .topbar{background:#fff;border-bottom:1px solid #dfe3e8;padding:9px 18px;display:flex;
+    align-items:center;justify-content:space-between;box-shadow:0 1px 6px rgba(0,0,0,.07);position:sticky;top:0;z-index:60}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px}
+  .logo{background:var(--omni);color:#fff;font-size:11px;font-weight:800;padding:4px 9px;border-radius:6px}
+  .sub{font-size:11px;color:var(--muted);font-weight:600}
+  .ctrls{display:flex;gap:9px;align-items:center}
+  .btn{cursor:pointer;border:1px solid #dfe3e8;background:#f7f8f9;border-radius:8px;
+    padding:6px 12px;font-size:12px;font-weight:600;color:#374151}
+  .btn:hover{background:var(--omni-l);border-color:var(--green);color:var(--green-d)}
+  .btn.primary{background:var(--omni);color:#fff;border-color:var(--omni)}
+  .btn.primary:hover{background:var(--green-d);color:#fff}
+
+  /* ===== landing page ===== */
+  .landing{max-width:760px;margin:40px auto;padding:0 20px}
+  .hero{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:28px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
+  .hero h1{margin:0 0 6px;font-size:22px}
+  .hero p{margin:0 0 22px;color:var(--muted);font-size:14px}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
+  .field input[type=text]{width:100%;padding:10px 12px;border:1px solid #cfd5db;border-radius:9px;font-size:14px}
+  .field select{width:100%;padding:10px 12px;border:1px solid #cfd5db;border-radius:9px;font-size:14px;background:#fff;cursor:pointer}
+  .field select:focus{outline:none;border-color:var(--green)}
+  .radioset{display:flex;flex-direction:column;gap:10px}
+  .radio{display:flex;gap:10px;align-items:flex-start;border:1px solid #e5e7eb;border-radius:10px;padding:11px 13px;cursor:pointer}
+  .radio:hover{border-color:var(--green)}
+  .radio.active{border-color:var(--green);background:var(--omni-l)}
+  .radio input{margin-top:3px}
+  .radio .rt{font-weight:700;font-size:13px}
+  .radio .rd{font-size:12px;color:var(--muted)}
+  .drop{border:2px dashed #cfd5db;border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover{border-color:var(--green);background:#fafdf6;color:var(--green-d)}
+  .filechip{display:inline-flex;align-items:center;gap:8px;background:var(--omni-l);border:1px solid #aed581;
+    color:var(--green-d);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;margin:6px 4px 0 0}
+  .wardlist{margin-top:14px}
+  .wardrow{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid #e5e7eb;
+    border-radius:9px;margin-bottom:8px;font-size:13px}
+  .wardrow .nm{font-weight:700}
+  .wardrow .meta{font-size:11px;color:var(--muted)}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
+  .err{background:#fee2e2;border:1px solid #fca5a5;color:var(--red-d);border-radius:9px;padding:9px 12px;font-size:12.5px;margin-top:10px}
+
+  /* ===== app layout ===== */
+  .wrap{display:grid;grid-template-columns:1fr 290px;max-width:1180px;margin:0 auto;gap:18px;padding:20px}
+  .stage{display:flex;justify-content:center;align-items:flex-start;padding:18px 6px 30px;perspective:2200px}
+  .scene{transform:rotateX(3deg) rotateY(-13deg);transition:transform .55s cubic-bezier(.4,0,.2,1)}
+  .scene.flat{transform:none}
+  .cab{background:#dfe3e7;border:6px solid #cfd5db;border-radius:10px;padding:10px;
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;width:560px;
+    box-shadow:0 22px 50px rgba(0,0,0,.26),inset 0 2px 6px rgba(255,255,255,.6)}
+  .col{display:flex;flex-direction:column;gap:12px}
+  .block{position:relative;border:1px solid #cfd5db;border-radius:8px;padding:8px;background:#fff}
+  .shelf-lines{display:flex;flex-direction:column;gap:0;min-height:230px;justify-content:space-around;padding:10px 6px}
+  .shelf-line{height:10px;border-radius:4px;background:#eceff2;border:1px solid #e0e4e8;cursor:pointer;display:flex;align-items:center;padding:0 6px;gap:5px}
+  .shelf-line:hover{background:#f0f7e8}
+  .shelf-dot{width:6px;height:6px;border-radius:50%;flex:none}
+  .dstack{display:flex;flex-direction:column;gap:2px;background:#9b9b9b;border-radius:5px;padding:3px}
+  .drow{display:flex;align-items:center;justify-content:center;position:relative;height:26px;border-radius:3px;
+    cursor:pointer;font-size:12px;font-weight:700;color:#fff;
+    background:linear-gradient(180deg,#b6b6b6,#9d9d9d);border:1px solid #8a8a8a;transition:.12s}
+  .drow:hover{filter:brightness(1.07);outline:2px solid var(--green)}
+  .drow.risk{background:linear-gradient(180deg,#f87171,#dc2626);border-color:#b91c1c}
+  .drow .led{position:absolute;inset-inline-start:6px;width:7px;height:7px;border-radius:50%}
+  .drow .ledn{position:absolute;inset-inline-end:6px;font-size:9px;font-weight:700;opacity:.9}
+  .screenarea{display:flex;gap:10px;align-items:center;justify-content:center;min-height:120px;padding:10px}
+  .scr{width:58%;height:90px;border-radius:6px;border:2px solid #2b2f33;
+    background:linear-gradient(135deg,#dbeafe,#bfdbfe);box-shadow:inset 0 2px 8px rgba(0,0,0,.25)}
+  .kbd{width:30%;height:78px;border-radius:6px;background:#9a9a9a;border:2px solid #7a7a7a;box-shadow:inset 0 2px 6px rgba(0,0,0,.3)}
+
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .card h3{margin:0 0 10px;font-size:13px}
+  .r{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #f3f4f6}
+  .r:last-child{border:none}.r .v{font-weight:700}
+  .legend span{display:flex;align-items:center;gap:7px;font-size:11.5px;margin:5px 0}
+  .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.12)}
+
+  /* drawer modal */
+  .modal{position:fixed;inset:0;background:rgba(20,24,28,.62);display:none;align-items:center;justify-content:center;z-index:120;padding:18px}
+  .modal.on{display:flex}
+  .sheet{background:#fff;border-radius:16px;max-width:940px;width:100%;max-height:94vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+  .shead{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;
+    background:linear-gradient(90deg,var(--omni),var(--green));color:#fff;position:sticky;top:0;z-index:2}
+  .shead h2{margin:0;font-size:15px}
+  .shead .x{cursor:pointer;border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:8px;width:30px;height:30px;font-size:18px}
+  .sbody{padding:14px 18px 22px}
+  .alarm{padding:9px 12px;border-radius:9px;font-size:12.5px;font-weight:600;margin-bottom:7px}
+  .alarm.lasa{background:#fee2e2;color:var(--red-d);border:1px solid #fca5a5}
+  .alarm.dup{background:#ffedd5;color:#9a3412;border:1px solid #fdba74}
+  .alarm.ha{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+  .alarm.ok{background:#ecfccb;color:var(--green-d);border:1px solid #bef264}
+  .tray{background:#e7eaee;border:3px solid #b3bac1;border-radius:10px;padding:10px}
+  .binrow{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:6px}
+  .binrow:last-child{margin-bottom:0}
+  .cb{position:relative;min-height:66px;border-radius:4px;padding:4px 4px 5px;
+    background:linear-gradient(180deg,#fff,#eef1f4);border:1px solid #c2c8ce;font-size:9px}
+  .cb.empty{background:linear-gradient(180deg,#f6f7f8,#e8eaed);border-color:#d6dadf}
+  .cb.zero{background:linear-gradient(180deg,#fffdf3,#fdf6da);border-color:#f3e2a0}
+  .cb.risk{border:2px solid var(--red);box-shadow:0 0 0 2px rgba(220,38,38,.16)}
+  .cb .bn{position:absolute;top:2px;inset-inline-end:4px;font-size:8px;font-weight:800;color:#9aa3ad}
+  .cb .gl{position:absolute;left:4px;top:3px;width:8px;height:8px;border-radius:50%;border:1px solid rgba(0,0,0,.15)}
+  .gl.green{background:var(--green);box-shadow:0 0 6px 1px rgba(34,197,94,.6)}
+  .gl.yellow{background:var(--yellow);box-shadow:0 0 6px 1px rgba(234,179,8,.6)}
+  .gl.grey{background:var(--grey)}
+  .cb .nm{margin-top:11px;font-weight:600;line-height:1.2;color:#1f2937}
+  .cb .em{margin-top:13px;text-align:center;color:#9aa3ad;font-weight:700;font-size:9px}
+  .cb .meta{font-size:8px;color:#9aa3ad;margin-top:1px}
+  .cb.filled{cursor:pointer}
+  .cb.filled:hover{outline:2px solid var(--green);outline-offset:-1px}
+  /* details panel */
+  .det{position:fixed;inset:0;background:rgba(20,24,28,.55);display:none;align-items:center;justify-content:center;z-index:200;padding:18px}
+  .det.on{display:flex}
+  .detcard{background:#fff;border-radius:14px;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden}
+  .dethead{background:linear-gradient(90deg,var(--omni),var(--green));color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+  .dethead h3{margin:0;font-size:15px}
+  .dethead .x{cursor:pointer;border:none;background:rgba(255,255,255,.2);color:#fff;border-radius:8px;width:30px;height:30px;font-size:18px}
+  .detbody{padding:16px 18px 20px}
+  .detloc{font-size:12px;font-weight:700;color:var(--green-d);background:var(--omni-l);border:1px solid #aed581;border-radius:8px;padding:7px 11px;margin-bottom:12px}
+  .detname{font-size:17px;font-weight:800;margin-bottom:12px;line-height:1.3}
+  .detrow{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid #f1f3f5}
+  .detrow:last-child{border:none}
+  .detrow .k{color:var(--muted)}
+  .detrow .v{font-weight:700}
+  .detstate{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;border-radius:14px;padding:3px 10px;margin-top:10px}
+  .detstate.green{background:#e7f6ea;color:var(--green-d)}
+  .detstate.yellow{background:#fdf6da;color:var(--yellow-d)}
+  .tg{font-size:7px;font-weight:800;padding:1px 4px;border-radius:4px;margin:1px 2px 0 0;display:inline-block}
+  .tg.lasa{background:#fee2e2;color:var(--red-d)}.tg.dup{background:#ffedd5;color:#9a3412}.tg.ha{background:#fef9c3;color:#854d0e}
+  .hint{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
+  .hidden{display:none!important}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}.binrow{grid-template-columns:repeat(4,1fr)}.cab{width:100%}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="logo">Omnicell®</span> XT — ADC Visualizer
+    <span class="sub" id="wardSub"></span></div>
+  <div class="ctrls">
+    <button class="btn" id="rotateBtn" onclick="toggleTilt()" style="display:none">↻ Rotate</button>
+    <button class="btn" id="changeWardBtn" onclick="goLanding()" style="display:none">Change Ward</button>
+  </div>
+</div>
+
+<!-- ===== LANDING ===== -->
+<div class="landing" id="landing">
+  <div class="hero">
+    <h1>Select a Ward</h1>
+    <p>Choose a ward and load its drawer/bin configuration. Each uploaded file represents one ward.</p>
+
+    <div class="field">
+      <label>Ward name / number</label>
+      <select id="wardName">
+        <option value="" disabled selected>— Select a ward (omni_stid) —</option>
+        <option>NGANGIO</option>
+        <option>NGCSECOR01</option>
+        <option>NGCSECOR02</option>
+        <option>NGDAYUNIT</option>
+        <option>NGENDO</option>
+        <option>NGENDO1</option>
+        <option>NGENDO2</option>
+        <option>NGENDO3</option>
+        <option>NGENDOPHAR</option>
+        <option>NGERACUTC</option>
+        <option>NGERFASTTR</option>
+        <option>NGERPEDIA</option>
+        <option>NGERPHAR</option>
+        <option>NGERRESP</option>
+        <option>NGERRESUS</option>
+        <option>NGICUSATPH</option>
+        <option>NGINPIV</option>
+        <option>NGINPPHAR1</option>
+        <option>NGINPPHAR2</option>
+        <option>NGMATERNIY</option>
+        <option>NGNAROP</option>
+        <option>NGOR01</option>
+        <option>NGOR02</option>
+        <option>NGOR03</option>
+        <option>NGOR04</option>
+        <option>NGOR05</option>
+        <option>NGOR06</option>
+        <option>NGOR07</option>
+        <option>NGOR08</option>
+        <option>NGPACU1</option>
+        <option>NGPACU2</option>
+        <option>NGPICUPHAR</option>
+        <option>NGW30R1</option>
+        <option>NGW30R2</option>
+        <option>NGW40R1</option>
+        <option>NGW41R2</option>
+        <option>NGW50R2</option>
+        <option>NGW51R1</option>
+        <option>NGW60R2</option>
+        <option>NGW61R2</option>
+        <option>NGW71R2</option>
+        <option>NGW80R2</option>
+        <option>NGW81R1</option>
+        <option>NGW90R2</option>
+        <option>NGW91R2</option>
+      </select>    </div>
+
+    <div class="field">
+      <label>Upload mode</label>
+      <div class="radioset">
+        <label class="radio active" id="modeDedicated">
+          <input type="radio" name="mode" value="dedicated" checked>
+          <div><div class="rt">Dedicated file for this ward</div>
+            <div class="rd">Upload one Excel file that belongs to this ward only.</div></div>
+        </label>
+        <label class="radio" id="modeMaster">
+          <input type="radio" name="mode" value="master">
+          <div><div class="rt">Single master file for all wards</div>
+            <div class="rd">Upload one file; it is used as the data source for every ward you open.</div></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Configuration file (.xls / .xlsx)</label>
+      <div class="drop" id="drop" onclick="document.getElementById('fileInput').click()">
+        Click to choose a file, or drop it here.
+      </div>
+      <input type="file" id="fileInput" accept=".xls,.xlsx" class="hidden">
+      <div id="fileChips"></div>
+      <div class="note">Required columns: <b>zone, draw_num, draw_type, bin_number, bin_ct, rx_name</b>
+        (optional: item_id, ctrl_lvl, qty_onhndz, qty_parlvl). A built-in demo ward is available without a file.</div>
+      <div id="landErr"></div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primary" onclick="enterWard()">Open Ward</button>
+      <button class="btn" onclick="loadDemo()">Open Demo Ward</button>
+    </div>
+
+    <div class="wardlist" id="wardList"></div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div class="wrap hidden" id="app">
+  <div><div class="stage"><div class="scene" id="scene"><div class="cab" id="cab"></div></div></div></div>
+  <div class="side">
+    <div class="card">
+      <h3>Cabinet Info</h3>
+      <div class="r"><span>Ward</span><span class="v" id="iWard">—</span></div>
+      <div class="r"><span>All zones</span><span class="v" id="iZones">—</span></div>
+      <div class="r"><span>Total bins</span><span class="v" id="iBins">0</span></div>
+      <div class="r"><span>In stock</span><span class="v" id="iStock" style="color:var(--green-d)">0</span></div>
+      <div class="r"><span>Zero quantity</span><span class="v" id="iZero" style="color:var(--yellow-d)">0</span></div>
+      <div class="r"><span>Empty / unassigned</span><span class="v" id="iEmpty" style="color:var(--muted)">0</span></div>
+    </div>
+    <div class="card">
+      <h3>🚨 Alarm Summary</h3>
+      <div class="r"><span>LASA drawers</span><span class="v" id="iLasa" style="color:var(--red)">0</span></div>
+      <div class="r"><span>Different strengths 🔁</span><span class="v" id="iDup" style="color:var(--orange)">0</span></div>
+      <div class="r"><span>High-alert adjacent ⚡</span><span class="v" id="iHa" style="color:var(--amber)">0</span></div>
+    </div>
+    <div class="card legend">
+      <h3>Guide Lights</h3>
+      <span><i class="dot" style="background:var(--green)"></i> Green — medication in stock</span>
+      <span><i class="dot" style="background:var(--yellow)"></i> Yellow — quantity is zero</span>
+      <span><i class="dot" style="background:var(--grey)"></i> Grey — empty / unassigned</span>
+      <span><i class="dot" style="background:var(--red);border-radius:3px"></i> Red outline — safety alarm</span>
+    </div>
+  </div>
+</div>
+
+<!-- drawer modal -->
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="shead"><h2 id="mTitle">Drawer</h2><button class="x" onclick="closeModal()">×</button></div>
+    <div class="sbody">
+      <div id="mAlarms"></div>
+      <div class="tray" id="mTray"></div>
+      <div class="hint">Bin 1 is at the bottom-left; numbering continues left-to-right across each row (48 bins, 6×8).</div>
+    </div>
+  </div>
+</div>
+
+<!-- bin medication details panel -->
+<div class="det" id="det">
+  <div class="detcard">
+    <div class="dethead"><h3 id="detTitle">Medication Details</h3><button class="x" onclick="closeDet()">×</button></div>
+    <div class="detbody">
+      <div class="detloc" id="detLoc"></div>
+      <div class="detname" id="detName"></div>
+      <div class="detrow"><span class="k">Item ID</span><span class="v" id="detId"></span></div>
+      <div class="detrow"><span class="k">Quantity</span><span class="v" id="detQty"></span></div>
+      <div class="detrow"><span class="k">Critical Level</span><span class="v" id="detCtrl"></span></div>
+      <div class="detrow"><span class="k">Par Level</span><span class="v" id="detPar"></span></div>
+      <div id="detStateWrap"></div>
+    </div>
+  </div>
+</div>
+<script>
+/* ===== embedded demo ward ===== */
+const DEMO_DATA=
+[{"z":1,"d":4,"b":1,"e":3,"rx":"Valproic Acid PR (Chro 500mg TAB","id":"DVPA5S","q":45,"ctrl":"6","par":40},{"z":1,"d":4,"b":4,"e":4,"rx":"CycloSPORINE 25mg CAP","id":"CSRA2M","q":32,"ctrl":"6","par":40},{"z":1,"d":4,"b":9,"e":9,"rx":"Calcium Carbonate 1500 m 1EA tab","id":"CACBD","q":0,"ctrl":"6","par":0},{"z":1,"d":4,"b":12,"e":12,"rx":"Diclofenac Na 25mg/1ml 3mL INJ","id":"DCFI2","q":21,"ctrl":"6","par":40},{"z":1,"d":4,"b":28,"e":28,"rx":"LamoTRIgine 25mg TAB","id":"LMT2","q":7,"ctrl":"6","par":40},{"z":1,"d":4,"b":33,"e":33,"rx":"Levothyroxine Sodium 50mcg TAB","id":"T450","q":37,"ctrl":"6","par":50},{"z":1,"d":5,"b":1,"e":2,"rx":"Valproic Acid 200mg TAB","id":"VPA","q":27,"ctrl":"6","par":30},{"z":1,"d":5,"b":3,"e":3,"rx":"Propranolol Hydrochlori 40mg TAB","id":"PPN4","q":18,"ctrl":"6","par":10},{"z":1,"d":5,"b":5,"e":5,"rx":"bisACODYl 5mg TAB","id":"BSC","q":33,"ctrl":"6","par":50},{"z":1,"d":5,"b":9,"e":9,"rx":"Digoxin 0.125mg TAB","id":"DGX125","q":18,"ctrl":"6","par":30},{"z":1,"d":5,"b":11,"e":11,"rx":"MetFORMIN Hydrochlorid 500mg TAB","id":"MTF","q":40,"ctrl":"6","par":50},{"z":1,"d":5,"b":14,"e":14,"rx":"bisACODYl 10mg Supp","id":"BSCR","q":29,"ctrl":"6","par":40},{"z":1,"d":5,"b":21,"e":21,"rx":"Doxycycline Hyclate 100mg CAP","id":"DXTC2","q":19,"ctrl":"6","par":40},{"z":1,"d":5,"b":22,"e":22,"rx":"Tamsulosin Hydrochlori 0.4mg TAB","id":"TSL2","q":38,"ctrl":"6","par":55},{"z":1,"d":5,"b":26,"e":26,"rx":"Acyclovir 800mg TAB","id":"ACV8","q":19,"ctrl":"6","par":20},{"z":1,"d":5,"b":36,"e":36,"rx":"Labetalol Hydrochlorid 200mg TAB","id":"LBT2","q":20,"ctrl":"6","par":10},{"z":1,"d":5,"b":41,"e":41,"rx":"Dutasteride 0.5mg/Tamsulosin CAP","id":"DTACI","q":26,"ctrl":"6","par":20},{"z":1,"d":6,"b":3,"e":3,"rx":"FLUoxetine  Hydrochlori 20mg CAP","id":"FOX","q":39,"ctrl":"6","par":60},{"z":1,"d":6,"b":5,"e":5,"rx":"Pramipexole (0.18 mg bas 1ea TAB","id":"PMPX025","q":7,"ctrl":"6","par":20},{"z":1,"d":6,"b":6,"e":6,"rx":"Clindamycin Hydrochlor 150mg CAP","id":"CLM","q":34,"ctrl":"6","par":40},{"z":1,"d":6,"b":7,"e":7,"rx":"Domperidone 10mg TAB","id":"DPDM","q":14,"ctrl":"6","par":10},{"z":1,"d":6,"b":8,"e":8,"rx":"Sertraline (Riasert 100mg FC TAB","id":"STR100","q":43,"ctrl":"6","par":50},{"z":1,"d":6,"b":9,"e":9,"rx":"DexAMETHasone 4mg TAB","id":"D4","q":13,"ctrl":"6","par":15},{"z":1,"d":6,"b":10,"e":10,"rx":"Atorvastatin Calcium 10mg TAB","id":"AVS","q":39,"ctrl":"6","par":60},{"z":1,"d":6,"b":13,"e":13,"rx":"QUEtiapine Fumarate 25mg TAB","id":"QTP25","q":13,"ctrl":"6","par":60},{"z":1,"d":6,"b":14,"e":14,"rx":"Parafon 1CAP TAB","id":"PRFN","q":65,"ctrl":"6","par":100},{"z":1,"d":6,"b":17,"e":17,"rx":"Vitamin B Complex 1EA TAB","id":"VITB","q":31,"ctrl":"6","par":50},{"z":1,"d":6,"b":20,"e":20,"rx":"Amoxicillin Trihydrate 500mg CAP","id":"AMXC5","q":40,"ctrl":"6","par":40},{"z":1,"d":6,"b":21,"e":21,"rx":"Lisinopril 10mg TAB","id":"LSN","q":16,"ctrl":"6","par":20},{"z":1,"d":6,"b":22,"e":22,"rx":"Pyridostigmine Bromide 60mg TAB","id":"PRD","q":4,"ctrl":"6","par":40},{"z":1,"d":6,"b":23,"e":23,"rx":"Dutasteride 0.5mg CAP","id":"DTS05","q":35,"ctrl":"6","par":40},{"z":1,"d":6,"b":27,"e":27,"rx":"Memantine Hydrochloride 10mg TAB","id":"MMTNT","q":30,"ctrl":"6","par":40},{"z":1,"d":6,"b":35,"e":35,"rx":"Racepinephrine 2.25% Inh 1EA BOT","id":"EPNRHIY","q":14,"ctrl":"1","par":20},{"z":1,"d":6,"b":41,"e":41,"rx":"Furosemide 10mg/1ml 2mL INJ","id":"FRSI","q":84,"ctrl":"6","par":150},{"z":1,"d":7,"b":4,"e":4,"rx":"Warfarin Sodium 1mg TAB","id":"WFR1","q":15,"ctrl":"5","par":20},{"z":1,"d":7,"b":6,"e":6,"rx":"Calcium Carbonat(1500m 600mg TAB","id":"CACB15","q":28,"ctrl":"6","par":200},{"z":1,"d":7,"b":11,"e":11,"rx":"HydrALAZINE Hyd 20mg/1ml 1mL INJ","id":"HDLI","q":0,"ctrl":"6","par":5},{"z":1,"d":7,"b":15,"e":15,"rx":"Verapamil Hydrochloride 40mg TAB","id":"VRP4","q":0,"ctrl":"6","par":0},{"z":1,"d":7,"b":17,"e":17,"rx":"SITagliptin 100mg CAP","id":"STGT100","q":20,"ctrl":"6","par":40},{"z":1,"d":7,"b":20,"e":20,"rx":"TraZODone 100mg TAB","id":"TRA100","q":0,"ctrl":"6","par":30},{"z":1,"d":7,"b":21,"e":21,"rx":"Topiramate 25mg TAB","id":"TPRM25","q":50,"ctrl":"6","par":80},{"z":1,"d":7,"b":28,"e":28,"rx":"Chlorpheniramine Maleate 4mg TAB","id":"CPNR","q":49,"ctrl":"6","par":40},{"z":1,"d":7,"b":29,"e":29,"rx":"CarBAMazepine immediat 200mg TAB","id":"CBM","q":0,"ctrl":"6","par":40},{"z":1,"d":7,"b":33,"e":33,"rx":"Hydrocortisone 10mg TAB","id":"H10","q":38,"ctrl":"6","par":60},{"z":1,"d":7,"b":37,"e":37,"rx":"Apixaban 2.5mg TAB","id":"APIX25","q":67,"ctrl":"5","par":130},{"z":1,"d":8,"b":1,"e":1,"rx":"Lisinopril 5mg TAB","id":"LSN5","q":28,"ctrl":"6","par":40},{"z":1,"d":8,"b":5,"e":5,"rx":"MetoCLOPRAMIDE Hydrochl 10mg TAB","id":"MTC","q":38,"ctrl":"6","par":40},{"z":1,"d":8,"b":7,"e":7,"rx":"Pioglitazone Hcl 30mg TAB","id":"PGTZ30","q":20,"ctrl":"6","par":20},{"z":1,"d":8,"b":9,"e":9,"rx":"Clarithromycin 250mg TAB","id":"CRTM","q":54,"ctrl":"6","par":40},{"z":1,"d":8,"b":10,"e":10,"rx":"Sertraline 25mg TAB","id":"STR25","q":0,"ctrl":"6","par":50},{"z":1,"d":8,"b":11,"e":11,"rx":"Ferric Hydroxide 100mg/F 1ea TAB","id":"FEFA","q":36,"ctrl":"6","par":50},{"z":1,"d":8,"b":13,"e":13,"rx":"AmLODIPine 5mg TAB","id":"ALD","q":25,"ctrl":"6","par":200},{"z":1,"d":8,"b":16,"e":16,"rx":"Amitriptyline Hydrochlo 25mg TAB","id":"AMT2","q":41,"ctrl":"6","par":40},{"z":1,"d":8,"b":17,"e":17,"rx":"Ezetimibe 10mg TAB","id":"EZTM","q":40,"ctrl":"6","par":50},{"z":1,"d":8,"b":18,"e":18,"rx":"Ticagrelor 90mg TAB","id":"TICA9","q":18,"ctrl":"6","par":60},{"z":1,"d":8,"b":22,"e":22,"rx":"Folic Acid 5mg TAB","id":"FL5","q":43,"ctrl":"6","par":50},{"z":1,"d":8,"b":25,"e":25,"rx":"Ketorolac Trome 30mg/1ml 1mL INJ","id":"KTRI","q":23,"ctrl":"6","par":40},{"z":1,"d":8,"b":28,"e":28,"rx":"Hydroxyurea 500mg CAP","id":"HU","q":47,"ctrl":"5","par":40},{"z":1,"d":8,"b":31,"e":31,"rx":"Warfarin Sodium 5mg TAB","id":"WFR5","q":21,"ctrl":"5","par":10},{"z":1,"d":8,"b":36,"e":36,"rx":"LevETIRAcetam 500mg TAB","id":"LTRC","q":54,"ctrl":"6","par":80},{"z":1,"d":8,"b":39,"e":39,"rx":"Glycopyrrolate 0.2mg/1ml 1mL INJ","id":"GCPA","q":11,"ctrl":"6","par":20},{"z":1,"d":8,"b":41,"e":41,"rx":"Amoxicillin Clavunate 625mg TAB","id":"AMXCV6","q":73,"ctrl":"6","par":80},{"z":1,"d":8,"b":44,"e":44,"rx":"MetoCLOPRAMIDE H 5mg/1ml 2mL INJ","id":"MTCI","q":36,"ctrl":"6","par":50},{"z":1,"d":9,"b":1,"e":1,"rx":"Hyaluronid 1500Units/1ml 1mL Amp","id":"HASEI","q":2,"ctrl":"6","par":2},{"z":1,"d":9,"b":4,"e":4,"rx":"Captopril 25mg TAB","id":"CTP","q":0,"ctrl":"6","par":0},{"z":1,"d":9,"b":10,"e":10,"rx":"RifAXIMin 200mg TAB","id":"RFX200","q":28,"ctrl":"6","par":100},{"z":1,"d":9,"b":13,"e":13,"rx":"Ivabradine 5mg TAB","id":"IVBD5","q":21,"ctrl":"6","par":20},{"z":1,"d":9,"b":15,"e":15,"rx":"Mycophenolate Mofetil 500mg TAB","id":"MPNM5","q":19,"ctrl":"6","par":20},{"z":1,"d":9,"b":16,"e":16,"rx":"Entecavir 0.5mg TAB","id":"ETCV05","q":10,"ctrl":"6","par":10},{"z":1,"d":9,"b":20,"e":20,"rx":"Digoxin 0.0625mg TAB","id":"DGX625","q":0,"ctrl":"6","par":10},{"z":1,"d":9,"b":21,"e":21,"rx":"Artific 10gtt/0.5ml 0.5ml MINIMS","id":"TNF","q":12,"ctrl":"6","par":20},{"z":1,"d":9,"b":23,"e":23,"rx":"Haloperidol 5mg TAB","id":"HLP5","q":0,"ctrl":"6","par":10},{"z":1,"d":9,"b":29,"e":29,"rx":"Acyclovir 200mg TAB","id":"ACV","q":11,"ctrl":"6","par":10},{"z":1,"d":9,"b":30,"e":30,"rx":"Artificial Tear 300gtt 15ml DROP","id":"ATO15","q":0,"ctrl":"6","par":8},{"z":1,"d":9,"b":33,"e":33,"rx":"Finasteride 5mg TAB","id":"FNS","q":67,"ctrl":"6","par":10},{"z":1,"d":9,"b":46,"e":46,"rx":"Simvastatin 10mg TAB","id":"SVS","q":19,"ctrl":"6","par":15},{"z":1,"d":10,"b":1,"e":2,"rx":"Granisetron Hydr 1mg/1ml 1mL INJ","id":"GNS1I","q":55,"ctrl":"6","par":60},{"z":1,"d":10,"b":2,"e":2,"rx":"Thiamine Hcl 50mg/1ml 2mL INJ","id":"B5I","q":20,"ctrl":"6","par":20},{"z":1,"d":10,"b":6,"e":6,"rx":"Sertraline 50mg TAB","id":"STR","q":50,"ctrl":"6","par":50},{"z":1,"d":10,"b":7,"e":7,"rx":"Multivitamin (Renal For 1tab TAB","id":"MTVRF","q":14,"ctrl":"6","par":15},{"z":1,"d":10,"b":10,"e":10,"rx":"Sevelamer Hydrochlorid 800mg TAB","id":"SVLM8","q":19,"ctrl":"6","par":20},{"z":1,"d":10,"b":11,"e":11,"rx":"Indapamide SR 1.5mg TAB","id":"IDP15","q":18,"ctrl":"6","par":30},{"z":1,"d":10,"b":12,"e":12,"rx":"Alfacalcidol 0.25mcg CAP","id":"ACCT","q":16,"ctrl":"6","par":40},{"z":1,"d":10,"b":14,"e":14,"rx":"bisOPROLOl 10mg TAB","id":"BIHT1","q":40,"ctrl":"6","par":30},{"z":1,"d":10,"b":15,"e":15,"rx":"DexAMETHasone 0.5mg TAB","id":"D","q":0,"ctrl":"6","par":10},{"z":1,"d":10,"b":17,"e":17,"rx":"Entresto 50mg TAB","id":"SAVA24","q":36,"ctrl":"6","par":50},{"z":1,"d":10,"b":18,"e":18,"rx":"Loratadine 10mg TAB","id":"LRT","q":29,"ctrl":"6","par":30},{"z":1,"d":10,"b":19,"e":19,"rx":"Spironolactone 100mg TAB","id":"SRN10","q":22,"ctrl":"6","par":30},{"z":1,"d":10,"b":20,"e":20,"rx":"Folic Acid 1mg TAB","id":"FL","q":20,"ctrl":"6","par":30},{"z":1,"d":10,"b":23,"e":23,"rx":"Perindopril 5mg TAB","id":"PRDP5","q":39,"ctrl":"6","par":40},{"z":1,"d":10,"b":25,"e":25,"rx":"MetOLazone 5mg TAB","id":"MTLZ5","q":14,"ctrl":"6","par":20},{"z":1,"d":10,"b":28,"e":28,"rx":"Ferrous So4 (190-200)mg TAB","id":"FE19","q":40,"ctrl":"6","par":40},{"z":1,"d":10,"b":33,"e":33,"rx":"Spironolactone 25mg TAB","id":"SRN2","q":29,"ctrl":"6","par":40},{"z":1,"d":10,"b":36,"e":36,"rx":"Aspirin ( 81 - 100 mg) E 1EA TAB","id":"ASAET","q":13,"ctrl":"6","par":100},{"z":1,"d":10,"b":43,"e":43,"rx":"SUMAtriptan 50mg TAB","id":"SUMA","q":11,"ctrl":"6","par":10},{"z":1,"d":10,"b":44,"e":44,"rx":"QUEtiapine Fumarate 100mg TAB","id":"QTP100","q":45,"ctrl":"6","par":40},{"z":1,"d":10,"b":46,"e":46,"rx":"Multivitamin 1EA TAB","id":"MTVT","q":20,"ctrl":"6","par":50},{"z":2,"d":1,"b":2,"e":2,"rx":"DiphenhydrAMINE 25mg CAP","id":"DPHD25","q":23,"ctrl":"6","par":40},{"z":2,"d":1,"b":3,"e":3,"rx":"DilTIAZem Hydrochloride 90mg TAB","id":"DTASR9","q":11,"ctrl":"6","par":10},{"z":2,"d":1,"b":6,"e":6,"rx":"Citalopram Hydrobromide 20mg TAB","id":"CTLP","q":41,"ctrl":"6","par":40},{"z":2,"d":1,"b":8,"e":8,"rx":"MetroNIDAZOLE (200-250) 1tab TAB","id":"MTZ","q":17,"ctrl":"6","par":30},{"z":2,"d":1,"b":9,"e":9,"rx":"ESOMEprazole 20mg TAB","id":"SOMP2","q":43,"ctrl":"6","par":80},{"z":2,"d":1,"b":11,"e":11,"rx":"Isosorbide Dinitrate Sub 5mg TAB","id":"ISBDS5","q":22,"ctrl":"6","par":10},{"z":2,"d":1,"b":12,"e":12,"rx":"Propranolol Hydrochlori 10mg TAB","id":"PPN1","q":24,"ctrl":"6","par":10},{"z":2,"d":1,"b":13,"e":13,"rx":"Alfacalcidol 1mcg CAP","id":"ACCC","q":40,"ctrl":"6","par":30},{"z":2,"d":1,"b":14,"e":14,"rx":"Co-trimoxazole DS (800 m 1EA TAB","id":"SPTM16","q":39,"ctrl":"6","par":30},{"z":2,"d":1,"b":16,"e":16,"rx":"Ibuprofen 400mg TAB","id":"IBP400","q":40,"ctrl":"6","par":30},{"z":2,"d":1,"b":18,"e":18,"rx":"PrednisoLONE 5mg TAB","id":"PDS","q":31,"ctrl":"6","par":60},{"z":2,"d":1,"b":19,"e":19,"rx":"Phytonadione 10mg/1ml 1mL INJ","id":"KI","q":7,"ctrl":"6","par":10},{"z":2,"d":1,"b":20,"e":20,"rx":"Hyoscine-N-Butylbromide 10mg TAB","id":"HB","q":25,"ctrl":"6","par":40},{"z":2,"d":1,"b":21,"e":21,"rx":"Ursodeoxycholic Aci 1tab TAB/CAP","id":"UDX2","q":47,"ctrl":"6","par":50},{"z":2,"d":1,"b":22,"e":22,"rx":"RisperiDONE 1mg TAB","id":"RSP1","q":29,"ctrl":"6","par":40},{"z":2,"d":1,"b":24,"e":24,"rx":"mebeVERINE 135mg TAB","id":"MBV","q":33,"ctrl":"6","par":40},{"z":2,"d":1,"b":25,"e":25,"rx":"PrednisoLONE 20mg TAB","id":"PD3","q":34,"ctrl":"6","par":60},{"z":2,"d":1,"b":31,"e":31,"rx":"Rosuvastatin Ca 10mg TAB","id":"RVS","q":50,"ctrl":"6","par":40},{"z":2,"d":1,"b":37,"e":37,"rx":"Potassium Chloride MR 8- 1EA TAB","id":"KCL8TR","q":35,"ctrl":"6","par":70},{"z":2,"d":1,"b":42,"e":42,"rx":"Linezolid 600mg TAB","id":"LNZL6","q":9,"ctrl":"6","par":15},{"z":2,"d":1,"b":45,"e":45,"rx":"NIFEdipine Extended Rel 30mg TAB","id":"NFD3","q":31,"ctrl":"6","par":40},{"z":2,"d":2,"b":1,"e":6,"rx":"Valsartan 160mg TAB","id":"VST2","q":55,"ctrl":"6","par":100},{"z":2,"d":2,"b":13,"e":13,"rx":"Losartan 100mg TAB","id":"LST100","q":27,"ctrl":"6","par":40},{"z":2,"d":2,"b":17,"e":17,"rx":"Carvedilol 6.25mg TAB","id":"CVD6","q":38,"ctrl":"6","par":60},{"z":2,"d":2,"b":21,"e":21,"rx":"Clopidogrel Bisulfate 75mg TAB","id":"CPDN","q":75,"ctrl":"6","par":100},{"z":2,"d":2,"b":25,"e":25,"rx":"Simethicone (40-42) mg C 1EA TAB","id":"SMTC42","q":49,"ctrl":"6","par":100},{"z":2,"d":2,"b":33,"e":33,"rx":"Apixaban 5mg TAB","id":"APIX5","q":56,"ctrl":"5","par":130},{"z":2,"d":2,"b":39,"e":39,"rx":"Phenytoin 100mg CAP","id":"DPH100","q":8,"ctrl":"6","par":10},{"z":4,"d":4,"b":2,"e":2,"rx":"Candesartan 8mg TAB","id":"CDST8","q":17,"ctrl":"6","par":10},{"z":4,"d":4,"b":13,"e":13,"rx":"Levothyroxine Sodium 25mcg TAB","id":"T425","q":78,"ctrl":"6","par":50},{"z":4,"d":4,"b":31,"e":31,"rx":"Entresto 100mg TAB","id":"SAVA","q":64,"ctrl":"6","par":50},{"z":4,"d":5,"b":3,"e":4,"rx":"Celecoxib 200mg CAP","id":"CLCX","q":60,"ctrl":"6","par":80},{"z":4,"d":5,"b":8,"e":8,"rx":"Haloperidol 5mg/1ml 1mL INJ","id":"HLP5I","q":14,"ctrl":"6","par":20},{"z":4,"d":5,"b":9,"e":9,"rx":"bisOPROLOl 2.5mg TAB","id":"BIHT2","q":50,"ctrl":"6","par":80},{"z":4,"d":5,"b":15,"e":15,"rx":"LevETIRAcetam 1000mg TAB","id":"LTRC10","q":20,"ctrl":"6","par":30},{"z":4,"d":5,"b":17,"e":17,"rx":"Azithromycin 250mg CAP","id":"AZM","q":28,"ctrl":"6","par":80},{"z":4,"d":5,"b":23,"e":23,"rx":"Co-trimoxazole (400mg/80 1EA TAB","id":"SPTM","q":20,"ctrl":"6","par":10},{"z":4,"d":5,"b":24,"e":24,"rx":"Pyridoxine Hcl 40mg TAB","id":"B640","q":29,"ctrl":"6","par":30},{"z":4,"d":5,"b":25,"e":25,"rx":"Oseltamivir Phosphate 75mg CAP","id":"OSTMV","q":37,"ctrl":"6","par":50},{"z":4,"d":5,"b":28,"e":28,"rx":"Senna 12mg TAB","id":"SNNA12","q":0,"ctrl":"6","par":60},{"z":4,"d":5,"b":33,"e":33,"rx":"Rosuvastatin 20mg TAB","id":"RVS2","q":16,"ctrl":"6","par":50},{"z":4,"d":5,"b":38,"e":38,"rx":"Atorvastatin Calcium 80mg TAB","id":"AVS8","q":51,"ctrl":"6","par":60},{"z":4,"d":6,"b":2,"e":2,"rx":"Amoxicillin, Clavunat 1000mg TAB","id":"AMXCV1","q":29,"ctrl":"6","par":40},{"z":4,"d":6,"b":7,"e":7,"rx":"Warfarin Sodium 2mg TAB","id":"WFR2","q":22,"ctrl":"5","par":10},{"z":4,"d":6,"b":13,"e":13,"rx":"PrednisoLONE Acetate 100gtt DROP","id":"PENI1","q":6,"ctrl":"6","par":5},{"z":4,"d":6,"b":18,"e":18,"rx":"Carvedilol 25mg TAB","id":"CVD","q":31,"ctrl":"6","par":60},{"z":4,"d":6,"b":23,"e":23,"rx":"Rivastigmine 4.6 mg 1patch PATCH","id":"RVS4","q":15,"ctrl":"6","par":20},{"z":4,"d":6,"b":25,"e":25,"rx":"Warfarin Sodium 2.5mg TAB","id":"WFR25","q":7,"ctrl":"5","par":10},{"z":4,"d":6,"b":34,"e":34,"rx":"Amantadine Hydrochlori 100mg CAP","id":"AMTD","q":10,"ctrl":"6","par":20},{"z":4,"d":6,"b":38,"e":38,"rx":"QUEtiapine Fumarate 200mg TAB","id":"QTP200","q":17,"ctrl":"6","par":10},{"z":4,"d":7,"b":1,"e":4,"rx":"PARoxetine Hydrochlorid 20mg TAB","id":"POXT","q":11,"ctrl":"6","par":20},{"z":4,"d":7,"b":5,"e":8,"rx":"Docusate Sodium 100mg CAP","id":"DCS100","q":30,"ctrl":"6","par":60},{"z":4,"d":7,"b":17,"e":17,"rx":"Alfuzosin 10mg Tab","id":"AFZ10","q":17,"ctrl":"6","par":20},{"z":4,"d":7,"b":19,"e":19,"rx":"Dapagliflozin 10mg TAB","id":"DAPA10F","q":64,"ctrl":"6","par":100},{"z":4,"d":7,"b":31,"e":31,"rx":"Atenolol 50mg TAB","id":"ATN","q":32,"ctrl":"6","par":30},{"z":4,"d":7,"b":34,"e":34,"rx":"Gliclazide MR 30mg TAB","id":"GCZS30","q":29,"ctrl":"6","par":30},{"z":4,"d":7,"b":39,"e":39,"rx":"Losartan Potassium 50mg TAB","id":"LST","q":39,"ctrl":"6","par":30},{"z":4,"d":8,"b":4,"e":4,"rx":"Solifenacin Succinate 10mg TAB","id":"SLFN10","q":39,"ctrl":"6","par":40},{"z":4,"d":8,"b":5,"e":5,"rx":"Isosorbide Dinitrate SR 20mg TAB","id":"ISBDS20","q":32,"ctrl":"6","par":50},{"z":4,"d":8,"b":8,"e":8,"rx":"Fludrocortisone Acetat 0.1mg TAB","id":"FDC","q":30,"ctrl":"6","par":30},{"z":4,"d":8,"b":9,"e":9,"rx":"Cholecalciferol (D 2000Units TAB","id":"CCF2000","q":27,"ctrl":"6","par":30},{"z":4,"d":8,"b":11,"e":11,"rx":"Amitriptyline Hydrochlo 10mg TAB","id":"AMT1","q":43,"ctrl":"6","par":60},{"z":4,"d":8,"b":22,"e":22,"rx":"Sinemet 25-100 IR 1EA TAB","id":"LC1","q":30,"ctrl":"6","par":50},{"z":4,"d":8,"b":27,"e":27,"rx":"Thiamine Hcl 100mg TAB/CAP","id":"B100","q":19,"ctrl":"6","par":30},{"z":4,"d":8,"b":30,"e":30,"rx":"Hepari 5000Units/0.2ml 0.2mL INJ","id":"HPR2","q":43,"ctrl":"5","par":150},{"z":4,"d":8,"b":33,"e":33,"rx":"ARIPiprazole 10mg TAB","id":"APPZ10","q":26,"ctrl":"6","par":25},{"z":4,"d":8,"b":41,"e":41,"rx":"Potassium Citrate 10meq TAB","id":"KCTT","q":10,"ctrl":"6","par":10},{"z":4,"d":8,"b":43,"e":43,"rx":"Meloxicam 15mg TAB","id":"MXC15","q":11,"ctrl":"6","par":10},{"z":4,"d":8,"b":44,"e":44,"rx":"Trospium chloride 20MG TAB","id":"TRO20","q":15,"ctrl":"6","par":10},{"z":4,"d":8,"b":45,"e":45,"rx":"Prazosin HCl 1MG TAB","id":"PZS1","q":0,"ctrl":"6","par":10},{"z":4,"d":8,"b":47,"e":47,"rx":"Lacosamide 100mg TAB","id":"LCSM100","q":18,"ctrl":"6","par":20},{"z":4,"d":9,"b":2,"e":4,"rx":"Furosemide 40mg TAB","id":"FRS4","q":31,"ctrl":"6","par":100},{"z":4,"d":9,"b":6,"e":6,"rx":"Mirtazapine 30mg TAB","id":"MZP","q":1,"ctrl":"6","par":40},{"z":4,"d":9,"b":8,"e":8,"rx":"Solifenacin Succinate 5mg TAB","id":"SLFN5","q":67,"ctrl":"6","par":40},{"z":4,"d":9,"b":9,"e":9,"rx":"Betahistine Dihydrochlor 8mg TAB","id":"BTHS","q":66,"ctrl":"6","par":100},{"z":4,"d":9,"b":12,"e":12,"rx":"OLANZapine 5mg TAB","id":"OZP5","q":0,"ctrl":"6","par":25},{"z":4,"d":9,"b":15,"e":15,"rx":"Ciprofloxacin Hydrochl 250mg TAB","id":"CPFX","q":23,"ctrl":"6","par":40},{"z":4,"d":9,"b":17,"e":17,"rx":"Simvastatin 40mg TAB","id":"SVS4","q":10,"ctrl":"6","par":10},{"z":4,"d":9,"b":20,"e":20,"rx":"Hyoscine-N-Buty 20mg/1ml 1mL Amp","id":"HBI","q":7,"ctrl":"6","par":10},{"z":4,"d":9,"b":23,"e":23,"rx":"Flumazenil 0.1mg/1ml 5mL INJ","id":"FMZ","q":5,"ctrl":"6","par":5},{"z":4,"d":9,"b":25,"e":25,"rx":"LamoTRIgine 100mg TAB","id":"LMT1","q":22,"ctrl":"6","par":40},{"z":4,"d":9,"b":28,"e":28,"rx":"Montelukast Sodium 10mg TAB","id":"MTL10","q":20,"ctrl":"6","par":30},{"z":4,"d":9,"b":31,"e":31,"rx":"Allopurinol 100mg TAB","id":"ALP","q":30,"ctrl":"6","par":60},{"z":4,"d":9,"b":33,"e":33,"rx":"Bumetanide 1mg TAB","id":"BMTN","q":36,"ctrl":"6","par":40},{"z":4,"d":9,"b":39,"e":39,"rx":"MethiMAzole 5mg TAB","id":"MMZ","q":30,"ctrl":"6","par":40},{"z":4,"d":9,"b":46,"e":46,"rx":"PredniSONE 20mg TAB","id":"PD20","q":5,"ctrl":"6","par":10},{"z":4,"d":9,"b":48,"e":48,"rx":"Midodrine 2.5mg TAB","id":"MDDR","q":4,"ctrl":"6","par":20},{"z":4,"d":10,"b":1,"e":3,"rx":"Baclofen 10mg TAB","id":"BCF1","q":24,"ctrl":"6","par":60},{"z":4,"d":10,"b":4,"e":4,"rx":"NIFEdipine Extended Rel 60mg TAB","id":"NFD6","q":23,"ctrl":"6","par":40},{"z":4,"d":10,"b":7,"e":7,"rx":"Naloxone Hydro 0.4mg/1ml 1mL INJ","id":"NLX4","q":4,"ctrl":"6","par":5},{"z":4,"d":10,"b":9,"e":9,"rx":"Loperamide Hydrochloride 2mg CAP","id":"LPRM","q":36,"ctrl":"6","par":40},{"z":4,"d":10,"b":13,"e":13,"rx":"Entecavir 1mg TAB","id":"ETCV","q":40,"ctrl":"6","par":40},{"z":4,"d":10,"b":17,"e":17,"rx":"Gliclazide 60mg TAB","id":"GCZS60","q":43,"ctrl":"6","par":40},{"z":4,"d":10,"b":24,"e":24,"rx":"Antacid with low magnei 1tab TAB","id":"AAAM","q":39,"ctrl":"6","par":60},{"z":4,"d":10,"b":25,"e":25,"rx":"CloNIDine 0.1mg TAB","id":"CND","q":35,"ctrl":"6","par":40},{"z":4,"d":10,"b":31,"e":31,"rx":"Protamine Sulfa 10mg/1ml 5mL INJ","id":"PTM","q":4,"ctrl":"6","par":5},{"z":4,"d":10,"b":33,"e":33,"rx":"Sodium Bicarbonate 650mg TAB","id":"HCO36","q":17,"ctrl":"6","par":70},{"z":4,"d":10,"b":43,"e":43,"rx":"RifAMPin 300mg and Ison 1tab CAP","id":"Y","q":8,"ctrl":"6","par":10},{"z":4,"d":10,"b":45,"e":45,"rx":"Pyrazinamide 500mg TAB","id":"PZA5","q":25,"ctrl":"6","par":40},{"z":4,"d":10,"b":46,"e":46,"rx":"HydroCHLOROthiazide 25mg TAB","id":"HCT","q":33,"ctrl":"6","par":40},{"z":4,"d":10,"b":47,"e":47,"rx":"Colchicine 0.5mg or 0. 0.5mg TAB","id":"CCC5","q":0,"ctrl":"6","par":20},{"z":4,"d":10,"b":48,"e":48,"rx":"Moxifloxacin 400mg TAB","id":"MXFX","q":12,"ctrl":"6","par":20}];
+
+/* ===== clinical reference ===== */
+const LASA_PAIRS=[["hydralazine","hydroxyzine"],["morphine","hydromorphone"],["dopamine","dobutamine"],
+ ["prednisone","prednisolone"],["clonidine","clonazepam"],["humalog","humulin"],["novolog","novolin"],
+ ["cefazolin","ceftriaxone"],["vincristine","vinblastine"],["cisplatin","carboplatin"],["epinephrine","ephedrine"]];
+const HIGH_ALERT=["insulin","heparin","warfarin","morphine","hydromorphone","fentanyl","potassium chloride",
+ "kcl","magnesium sulfate","epinephrine","norepinephrine","dopamine","dobutamine","propofol","midazolam",
+ "digoxin","methotrexate","vincristine","amiodarone","oxytocin","ephedrine"];
+const BPR=8,TOTAL=48;
+
+/* ===== fixed cabinet template (drives layout, NOT medication data) =====
+   The cabinet is always rendered from this structure. Drawers appear even
+   when no medication records exist for them. Each drawer has TOTAL (48) bins;
+   empty bins render as "Empty". */
+const CABINET_TEMPLATE = {
+  zone4: { zone:4, drawers:[1,2,3,4,5,6,7,8,9,10],            displayStart:1  },
+  zone1: { zone:1, drawers:[1,2,3,4,5,6,7,8,9,10],            displayStart:1  },
+  zone2: { zone:2, drawers:[1,2,3,4,5],                       displayStart:11 },
+};
+
+/* ===== ward store ===== */
+const wards={};          // name -> array of bin records
+let masterData=null;     // single master file applied to all wards
+let pendingFile=null;    // parsed records from the current upload
+let currentWard=null;
+
+const lc=s=>String(s||"").toLowerCase();
+const isHA=n=>HIGH_ALERT.some(k=>lc(n).includes(k));
+function strength(n){const m=lc(n).match(/\b\d+(?:\.\d+)?\s*(mg|mcg|g|ml|meq|u|units|iu|%)/g);
+ return m?[...new Set(m.map(x=>x.replace(/\s/g,'')))].sort().join(','):'';}
+function baseName(n){return lc(n).replace(/\([^)]*\)/g,' ').split(/\d/)[0]
+ .replace(/\b(tab|tablet|cap|capsule|inj|injection|soln|solution|susp|syrup|vial|amp|oral|iv|po|sc|opht|ophthalmic|supp)\b/g,' ')
+ .replace(/[^a-z]+/g,' ').trim();}
+/* bin 1 = bottom-left, left-to-right per row */
+function neighbors(bn){const i=bn-1,r=Math.floor(i/BPR),c=i%BPR,o=[];
+ [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>{const nr=r+dr,nc=c+dc;
+  if(nr>=0&&nr<TOTAL/BPR&&nc>=0&&nc<BPR)o.push(nr*BPR+nc+1);});return o;}
+
+/* ===== data accessors =====
+   A ward stores OCCUPIED medication records only. Each record:
+   { z:zone, d:draw_num, b:startBin, e:endBin, rx:rx_name, id:item_id,
+     q:qty_onhndz, ctrl:ctrl_lvl, par:qty_parlvl }
+   Empty drawers/bins come from the fixed CABINET_TEMPLATE, never from data. */
+function data(){return currentWard?wards[currentWard]:[];}
+
+/* medications physically located in a specific Zone+Drawer (identity = zone+draw) */
+function medsIn(arr,z,d){return arr.filter(x=>x.z===z&&x.d===d);}
+
+/* expand a drawer's medications into a bin->record map (handles bin ranges).
+   A med with b=33,e=37 occupies bins 33,34,35,36,37 (all flagged as that med). */
+function drawerBinMap(arr,z,d){
+ const map={};
+ medsIn(arr,z,d).forEach(m=>{
+   const start=m.b, end=(m.e&&m.e>m.b)?m.e:m.b;
+   for(let bn=start; bn<=end; bn++){
+     // first writer wins; ranges shouldn't overlap in real data
+     if(!(bn in map)) map[bn]={...m, rangeStart:start, rangeEnd:end};
+   }
+ });
+ return map;
+}
+
+/* guide-light state for a med record: 'green' (in stock) | 'yellow' (qty 0) */
+function lightState(x){
+ if(!x) return 'grey';            // empty / unassigned
+ if((x.q||0)===0) return 'yellow';// zero quantity
+ return 'green';                  // in stock
+}
+
+/* ===== alarms (use rx_name; evaluate on each med's start bin) ===== */
+function computeRisks(arr,z,d){
+ const rows=medsIn(arr,z,d).map(x=>({name:x.rx,bin:x.b}));
+ const R={};const add=(b,t)=>{(R[b]=R[b]||[]);if(!R[b].includes(t))R[b].push(t);};
+ LASA_PAIRS.forEach(([a,b])=>{const hA=rows.some(r=>lc(r.name).includes(a)),hB=rows.some(r=>lc(r.name).includes(b));
+  if(hA&&hB)rows.forEach(r=>{if(lc(r.name).includes(a)||lc(r.name).includes(b))add(r.bin,"LASA");});});
+ const byBase={};rows.forEach(r=>{const bn=baseName(r.name),st=strength(r.name);if(bn&&st)(byBase[bn]=byBase[bn]||[]).push({bin:r.bin,st});});
+ Object.values(byBase).forEach(a=>{if(new Set(a.map(x=>x.st)).size>1)a.forEach(x=>add(x.bin,"DUP"));});
+ const ha={};rows.forEach(r=>{if(isHA(r.name))ha[r.bin]=true;});
+ Object.keys(ha).map(Number).forEach(b=>neighbors(b).forEach(nb=>{if(ha[nb]){add(b,"HA-ADJ");add(nb,"HA-ADJ");}}));
+ return R;}
+function riskKinds(arr,z,d){const k=new Set();Object.values(computeRisks(arr,z,d)).forEach(a=>a.forEach(t=>k.add(t)));return k;}
+function drawerHasRisk(arr,z,d){return Object.keys(computeRisks(arr,z,d)).length>0;}
+
+/* ===== file parsing ===== */
+function parseRows(rows){
+ const norm=k=>String(k).trim().toLowerCase();
+ const num=v=>{const m=String(v==null?'':v).match(/-?\d+/);return m?parseInt(m[0]):0;};
+ const recs=[];
+ rows.forEach(r=>{const o={};Object.keys(r).forEach(k=>o[norm(k)]=r[k]);
+  if(String(o['draw_type']).trim()!=='56')return; // canonical 48-bin layout
+  const z=num(o.zone), d=num(o.draw_num), b=num(o.bin_number);
+  if(!z||!d||!b)return;
+  // medication name comes from rx_name (NOT item_name)
+  const rx=String(o.rx_name||'').trim();
+  if(rx==='' || rx.toLowerCase()==='(available)') return; // empties come from template
+  const bc=num(o.bin_ct);
+  recs.push({
+    z, d, b,
+    e: (bc>b? bc : b),                 // end bin: range only when bin_ct > bin_number
+    rx,
+    id: String(o.item_id||'').trim(),
+    q: num(o.qty_onhndz),              // quantity = qty_onhndz
+    ctrl: String(o.ctrl_lvl==null?'':o.ctrl_lvl).replace(/\.0$/,'').trim(),
+    par: num(o.qty_parlvl),            // par level = qty_parlvl
+  });});
+ // dedupe by (zone, draw, start bin)
+ const m={};recs.forEach(r=>{const k=r.z+'-'+r.d+'-'+r.b; if(!(k in m))m[k]=r;});
+ return Object.values(m);
+}
+function readFile(file,cb){
+ const rd=new FileReader();
+ rd.onload=ev=>{try{
+   const wb=XLSX.read(ev.target.result,{type:'array'});
+   const ws=wb.Sheets[wb.SheetNames[0]];
+   const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+   const recs=parseRows(rows);
+   if(!recs.length){cb(null,"No valid rows found (need draw_type 56 with zone/draw_num/bin_number/rx_name).");return;}
+   cb(recs,null);
+ }catch(e){cb(null,"Could not read this file. If it is a legacy .xls, open it in Excel and save as .xlsx. ("+e.message+")");}};
+ rd.readAsArrayBuffer(file);
+}
+
+/* ===== landing interactions ===== */
+document.querySelectorAll('input[name=mode]').forEach(r=>r.addEventListener('change',()=>{
+ document.getElementById('modeDedicated').classList.toggle('active',r.value==='dedicated'&&r.checked);
+ document.getElementById('modeMaster').classList.toggle('active',r.value==='master'&&r.checked);
+}));
+const drop=document.getElementById('drop');
+['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.style.borderColor='var(--green)';}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.style.borderColor='';}));
+drop.addEventListener('drop',ev=>{if(ev.dataTransfer.files[0])handleFile(ev.dataTransfer.files[0]);});
+document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+
+function handleFile(file){
+ document.getElementById('landErr').innerHTML='';
+ readFile(file,(recs,err)=>{
+  if(err){document.getElementById('landErr').innerHTML='<div class="err">'+err+'</div>';pendingFile=null;return;}
+  pendingFile={name:file.name,recs};
+  document.getElementById('fileChips').innerHTML=
+    '<span class="filechip">📄 '+file.name+' — '+recs.length+' bins</span>';
+ });
+}
+
+function enterWard(){
+ const name=(document.getElementById('wardName').value||'').trim();
+ const mode=document.querySelector('input[name=mode]:checked').value;
+ const errEl=document.getElementById('landErr');errEl.innerHTML='';
+ if(!name){errEl.innerHTML='<div class="err">Please enter a ward name.</div>';return;}
+ let recs=null;
+ if(mode==='master'){
+  if(pendingFile)masterData=pendingFile.recs;
+  if(!masterData){errEl.innerHTML='<div class="err">Upload a master file first (or use Demo Ward).</div>';return;}
+  recs=masterData;
+ }else{
+  if(!pendingFile){errEl.innerHTML='<div class="err">Upload a dedicated file for this ward (or use Demo Ward).</div>';return;}
+  recs=pendingFile.recs;
+ }
+ wards[name]=recs;
+ pendingFile=null;document.getElementById('fileChips').innerHTML='';
+ openWard(name);
+}
+function loadDemo(){
+ const name=(document.getElementById('wardName').value||'').trim()||'Demo Ward';
+ wards[name]=DEMO_DATA;openWard(name);
+}
+function renderWardList(){
+ const names=Object.keys(wards);const el=document.getElementById('wardList');
+ if(!names.length){el.innerHTML='';return;}
+ el.innerHTML='<div style="font-size:12px;font-weight:700;margin:6px 0">Loaded wards</div>'+
+  names.map(n=>{const a=wards[n];const occ=a.length;
+    return '<div class="wardrow"><span class="nm">'+n+'</span>'+
+      '<span class="meta">'+a.length+' medications '+
+      '<button class="btn" style="padding:3px 9px;margin-inline-start:8px" onclick="openWard(\''+n.replace(/'/g,"\\'")+'\')">Open</button></span></div>';}).join('');
+}
+
+/* ===== open ward / build cabinet ===== */
+function goLanding(){document.getElementById('app').classList.add('hidden');
+ document.getElementById('landing').classList.remove('hidden');
+ document.getElementById('rotateBtn').style.display='none';
+ document.getElementById('changeWardBtn').style.display='none';
+ document.getElementById('wardSub').textContent='';renderWardList();}
+function openWard(name){
+ currentWard=name;
+ document.getElementById('landing').classList.add('hidden');
+ document.getElementById('app').classList.remove('hidden');
+ document.getElementById('rotateBtn').style.display='';
+ document.getElementById('changeWardBtn').style.display='';
+ document.getElementById('wardSub').textContent='· '+name;
+ buildCab();updateInfo();
+}
+function toggleTilt(){document.getElementById('scene').classList.toggle('flat');}
+
+function shelfBlock(arr,z){
+ // shelves have no bin data in the file; show rails. If a zone has data, show light dots.
+ let dots='';for(let i=0;i<4;i++)dots+='<div class="shelf-line"><span class="shelf-dot grey" style="background:var(--grey)"></span></div>';
+ return '<div class="block"><div class="shelf-lines">'+dots+'</div></div>';
+}
+function drawerRows(arr,spec){
+ // returns just the <div class="drow"> rows for a zone spec (no wrapper)
+ const z=spec.zone;let rows='';
+ spec.drawers.forEach((d,i)=>{const disp=spec.displayStart+i;
+   const meds=medsIn(arr,z,d);
+   const stock=meds.filter(x=>(x.q||0)>0).length;
+   const zero=meds.filter(x=>(x.q||0)===0).length;
+   const risk=drawerHasRisk(arr,z,d);const k=riskKinds(arr,z,d);
+   const tag=risk?(k.has("LASA")?"LASA":k.has("DUP")?"🔁":"⚡"):'';
+   const led=stock>0?'var(--green)':(zero>0?'var(--yellow)':'var(--grey)');
+   rows+='<div class="drow '+(risk?'risk':'')+'" onclick="openDrawer('+z+','+d+','+disp+')">'+
+     '<span class="led" style="background:'+led+'"></span>'+disp+
+     '<span class="ledn">'+tag+'</span></div>';});
+ return rows;
+}
+function drawerBlock(arr,spec){
+ // single-zone panel
+ return '<div class="block"><div class="dstack">'+drawerRows(arr,spec)+'</div></div>';
+}
+function drawerPanelMerged(arr,specs){
+ // multiple zones rendered as ONE continuous drawer stack (no gap/border between them)
+ let rows='';specs.forEach(s=>{rows+=drawerRows(arr,s);});
+ return '<div class="block"><div class="dstack">'+rows+'</div></div>';
+}
+function buildCab(){
+ const arr=data();
+ // Cabinet is built from the fixed template — never from medication data.
+ const leftCol = shelfBlock(arr)
+   + drawerBlock(arr,CABINET_TEMPLATE.zone4)
+   + shelfBlock(arr);
+ const rightCol = shelfBlock(arr)
+   + '<div class="block"><div class="screenarea"><div class="scr"></div><div class="kbd"></div></div></div>'
+   + drawerPanelMerged(arr,[CABINET_TEMPLATE.zone1,CABINET_TEMPLATE.zone2]);
+ document.getElementById('cab').innerHTML='<div class="col">'+leftCol+'</div><div class="col">'+rightCol+'</div>';
+}
+
+/* ===== drawer modal ===== */
+function openDrawer(z,d,disp){
+ const arr=data();
+ const binMap=drawerBinMap(arr,z,d);          // bin -> med record (ranges expanded)
+ const R=computeRisks(arr,z,d);
+ const meds=medsIn(arr,z,d);
+ const occBins=Object.keys(binMap).length;
+ document.getElementById('mTitle').textContent='Drawer '+disp+' (Zone '+z+') · '+meds.length+' medications · '+occBins+'/'+TOTAL+' bins filled';
+ const kinds=new Set();Object.values(R).forEach(a=>a.forEach(t=>kinds.add(t)));
+ const al=document.getElementById('mAlarms');al.innerHTML='';
+ if(kinds.has("LASA"))al.innerHTML+='<div class="alarm lasa">🔴 LASA — look-alike/sound-alike pair in the same drawer</div>';
+ if(kinds.has("DUP"))al.innerHTML+='<div class="alarm dup">🔁 Same drug at different strengths in this drawer</div>';
+ if(kinds.has("HA-ADJ"))al.innerHTML+='<div class="alarm ha">⚡ High-alert medications in adjacent bins</div>';
+ if(!kinds.size)al.innerHTML='<div class="alarm ok">✅ No safety alarms in this drawer</div>';
+ const tray=document.getElementById('mTray');tray.innerHTML='';
+ // ALWAYS render all 48 bins from the template. top row = 41-48, bottom = 1-8 (bin 1 bottom-left)
+ for(let top=TOTAL-BPR;top>=0;top-=BPR){const rowEl=document.createElement('div');rowEl.className='binrow';
+  for(let i=0;i<BPR;i++){const bn=top+i+1,x=binMap[bn],rs=R[bn]||[],risk=rs.length>0;
+   const state=lightState(x); // green/yellow/grey
+   const cls='cb'+(state==='grey'?' empty':'')+(state==='yellow'?' zero':'')+(risk?' risk':'');
+   let html='<span class="gl '+state+'"></span><span class="bn">'+bn+'</span>';
+   if(rs.length)html+=rs.map(t=>'<span class="tg '+(t==='LASA'?'lasa':t==='DUP'?'dup':'ha')+'">'+t+'</span>').join('');
+   if(x){
+     // bin-range label when a med spans several bins
+     const range=(x.rangeEnd>x.rangeStart)?('Bins '+x.rangeStart+'–'+x.rangeEnd):('Bin '+x.rangeStart);
+     html+='<div class="nm">'+x.rx+'</div>'+
+           '<div class="meta">'+range+'</div>'+
+           '<div class="meta">'+(x.id?('ID '+x.id):'')+' · qty '+x.q+'</div>'+
+           '<div class="meta">'+(x.ctrl?('CTRL '+x.ctrl+' · '):'')+'par '+x.par+'</div>';
+   } else { html+='<div class="em">Empty</div>'; }
+   const c=document.createElement('div');
+   c.className=cls+(x?' filled':'');
+   c.innerHTML=html;
+   if(x){c.onclick=()=>openDet(z,disp,x);}
+   rowEl.appendChild(c);}
+  tray.appendChild(rowEl);}
+ document.getElementById('modal').classList.add('on');
+}
+function closeModal(){document.getElementById('modal').classList.remove('on');}
+
+/* ===== bin medication details panel ===== */
+function openDet(zone,drawerDisp,x){
+ const range=(x.rangeEnd>x.rangeStart)?('Bins '+x.rangeStart+'–'+x.rangeEnd):('Bin '+x.rangeStart);
+ document.getElementById('detTitle').textContent='Zone '+zone+' · Drawer '+drawerDisp;
+ document.getElementById('detLoc').textContent='Location: '+range;
+ document.getElementById('detName').textContent=x.rx;
+ document.getElementById('detId').textContent=x.id||'—';
+ document.getElementById('detQty').textContent=x.q;
+ document.getElementById('detCtrl').textContent=(x.ctrl===''?'—':x.ctrl);
+ document.getElementById('detPar').textContent=x.par;
+ const st=(x.q||0)>0?'green':'yellow';
+ const label=(x.q||0)>0?'In stock':'Quantity is zero';
+ document.getElementById('detStateWrap').innerHTML='<span class="detstate '+st+'">● '+label+'</span>';
+ document.getElementById('det').classList.add('on');
+}
+function closeDet(){document.getElementById('det').classList.remove('on');}
+document.getElementById('det').addEventListener('click',e=>{if(e.target.id==='det')closeDet();});
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+
+/* ===== info panel ===== */
+function templateDrawerCount(){
+ return CABINET_TEMPLATE.zone4.drawers.length
+      + CABINET_TEMPLATE.zone1.drawers.length
+      + CABINET_TEMPLATE.zone2.drawers.length;
+}
+function updateInfo(){
+ const arr=data();
+ const totalBins=templateDrawerCount()*TOTAL;     // full physical cabinet
+ // filled bins (expand ranges), stock vs zero
+ let filled=0,stock=0,zero=0;
+ [CABINET_TEMPLATE.zone4,CABINET_TEMPLATE.zone1,CABINET_TEMPLATE.zone2].forEach(spec=>{
+   spec.drawers.forEach(d=>{const bm=drawerBinMap(arr,spec.zone,d);
+     Object.values(bm).forEach(x=>{filled++; if((x.q||0)>0)stock++; else zero++;});});
+ });
+ document.getElementById('iWard').textContent=currentWard||'—';
+ document.getElementById('iZones').textContent='0,1,2,3,4,5';
+ document.getElementById('iBins').textContent=totalBins;
+ document.getElementById('iStock').textContent=stock;
+ document.getElementById('iZero').textContent=zero;
+ document.getElementById('iEmpty').textContent=totalBins-filled;
+ let l=0,du=0,h=0;
+ [CABINET_TEMPLATE.zone4,CABINET_TEMPLATE.zone1,CABINET_TEMPLATE.zone2].forEach(spec=>{
+   spec.drawers.forEach(d=>{const k=riskKinds(arr,spec.zone,d);
+     if(k.has("LASA"))l++;if(k.has("DUP"))du++;if(k.has("HA-ADJ"))h++;});
+ });
+ document.getElementById('iLasa').textContent=l;
+ document.getElementById('iDup').textContent=du;
+ document.getElementById('iHa').textContent=h;
+}
+renderWardList();
+</script>
+</body></html>
